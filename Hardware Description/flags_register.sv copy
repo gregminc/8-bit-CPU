@@ -1,0 +1,20 @@
+
+
+module flags_register(input  logic carry_i,
+                      input  logic zero_i,
+                      input  logic negative_i,
+                      input  logic flags_load_i,
+                      input  logic clk_i,
+                      input  logic rst_i,
+                      output logic [2:0] flags_o
+                      );
+
+    // flag order: carry, zero, negative
+    always_ff @(posedge clk_i) begin
+        if (rst_i)
+            flags_o <= 3'b000;
+        else if (flags_load_i)
+            flags_o <= {carry_i, zero_i, negative_i};   // {C, Z, N}
+    end
+
+endmodule

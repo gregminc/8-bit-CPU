@@ -1,0 +1,151 @@
+
+
+module cpu_datapath(input  logic       clk_i,
+                    input  logic       rst_i,
+                    // input from controller
+                    input  logic       alu_cin_control,
+                    input  logic       pc_inc_i,
+                    input  logic       pc_load_i,
+                    input  logic       ir_enable_i,
+                    input  logic       mar_enable_i,
+                    input  logic       a_enable_i,
+                    input  logic       b_enable_i,
+                    input  logic       flags_enable_i,
+                    input  logic       ram_write_i,
+                    input  logic       a_mux_sel_i,
+                    input  logic [4:0] alu_control_i,
+                    // bus selection
+                    input  logic [2:0] bus_sel_i,
+                    // feedback to FSM
+                    output logic [7:0] opcode_o,
+                    output logic [2:0] flags_o,
+                    // input/output
+                    output logic [6:0] hex2_o,
+                    output logic [6:0] hex1_o,
+                    output logic [6:0] hex0_o
+                    );
+
+    // create central data bus
+
+    logic [7:0] data_bus;
+
+    // create conecting wires
+
+    logic [7:0] pc_to_ROM;      // program counter to ROM
+    logic [7:0] reg_a_to_ALU;   // A register to ALU
+    logic [7:0] reg_b_to_ALU;   // B register to ALU
+    logic [7:0] ALU_to_reg_A;   // ALU result to A register
+    logic [7:0] MAR_to_RAM;     // MAR to RAM
+    logic [7:0] RAM_out;        // RAM output
+    logic [7:0] ROM_out;        // ROM output
+    logic       alu_carry_o;    // ALU carry output
+    logic       alu_zero_o;     // ALU zero output
+    logic       alu_negative_o; // ALU negative output
+
+    // reg A recieves multiplexer output
+
+    logic [7:0] a_data_i;
+    assign a_data_i = (a_mux_sel_i) ? ALU_to_reg_A : data_bus;  // if selected, write to A register
+
+    // instantiate modules
+
+    ALU alu(
+        .alu_a_i(reg_a_to_ALU),
+        .alu_b_i(reg_b_to_ALU),
+        .alu_control_i(alu_control_i),
+        .alu_carry_i(alu_cin_control),
+        .alu_result_o(ALU_to_reg_A),
+        .alu_carry_o(alu_carry_o),
+        .alu_zero_o(alu_zero_o),
+        .alu_negative_o(alu_negative_o)
+    );
+
+    program_counter pc(
+        .pc_i(data_bus[7:0]),
+        .inc_i(pc_inc_i),
+        .load_i(pc_load_i),
+        .clk_i(clk_i),
+        .rst_i(rst_i),
+        .pc_o(pc_to_ROM)    
+    );
+
+    generic_register reg_a(
+        .data_i(a_data_i),
+        .clk_i(clk_i),
+        .rst_i(rst_i),
+        .enable_i(a_enable_i),
+        .data_o(reg_a_to_ALU)
+    );
+    
+    generic_register reg_b(
+        .data_i(data_bus[7:0]),
+        .clk_i(clk_i),
+        .rst_i(rst_i),
+        .enable_i(b_enable_i),
+        .data_o(reg_b_to_ALU)
+    );
+
+    generic_register ir(
+        .data_i(data_bus[7:0]),
+        .clk_i(clk_i),
+        .rst_i(rst_i),
+        .enable_i(ir_enable_i),
+        .data_o(opcode_o)
+    );
+
+    generic_register mar(
+        .data_i(data_bus[7:0]),
+        .clk_i(clk_i),
+        .rst_i(rst_i),
+        .enable_i(mar_enable_i),
+        .data_o(MAR_to_RAM)
+    );
+
+    flags_register flags(  
+        .carry_i(alu_carry_o),
+        .zero_i(alu_zero_o),
+        .negative_i(alu_negative_o),
+        .flags_load_i(flags_enable_i),
+        .clk_i(clk_i),
+        .rst_i(rst_i),
+        .flags_o(flags_o)
+    );
+
+    ram_memory main_ram(
+        .addr_i(MAR_to_RAM[7:0]),
+        .data_i(data_bus[7:0]),
+        .write_i(ram_write_i && (MAR_to_RAM != 8'hFF)),
+        .clk_i(clk_i),
+        .data_o(RAM_out)
+    );
+
+    rom_memory rom(
+        .addr_i(pc_to_ROM[7:0]),
+        .data_o(ROM_out)
+    );
+
+    logic display_write;
+    assign display_write = ram_write_i && (MAR_to_RAM == 8'hFF);
+
+    // select bus line
+
+    always_comb begin
+        unique casez (bus_sel_i)
+            3'b100: data_bus = reg_a_to_ALU;
+            3'b010: data_bus = RAM_out;
+            3'b001: data_bus = ROM_out;
+            default: data_bus = 8'b00000000;
+        endcase
+    end
+
+    io_display display(
+        .clk_i(clk_i),
+        .rst_i(rst_i),
+        .we_i(display_write),
+        .data_i(data_bus),
+        .hex2_o(hex2_o),
+        .hex1_o(hex1_o),
+        .hex0_o(hex0_o)
+    );
+
+endmodule

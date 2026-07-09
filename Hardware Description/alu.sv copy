@@ -1,0 +1,80 @@
+
+
+module ALU(input  logic [7:0] alu_a_i,
+           input  logic [7:0] alu_b_i,
+           input  logic [4:0] alu_control_i,        // [4] is M, [3:0] is S
+           input  logic       alu_carry_i,          // carry follows active-high logic
+           output logic [7:0] alu_result_o,
+           output logic       alu_carry_o,          // carry follows active-high logic
+           output logic       alu_zero_o,
+           output logic       alu_negative_o
+           );
+
+    logic internal_carry_o;                         // use to route carry from low_alu to high_alu
+    logic real_alu_carry_i, real_alu_carry_o;       // create active-high internal carries
+
+    assign real_alu_carry_i = ~alu_carry_i;         // invert active-high to active-low
+
+    // low alu
+    four_bit_alu low_alu(
+        .A(alu_a_i[3:0]),
+        .B(alu_b_i[3:0]),
+        .S(alu_control_i[3:0]),
+        .M(alu_control_i[4]),
+        .Cin(real_alu_carry_i),
+        .F(alu_result_o[3:0]),
+        .Cout(internal_carry_o)
+    );
+
+    // high alu
+    four_bit_alu high_alu(
+        .A(alu_a_i[7:4]),
+        .B(alu_b_i[7:4]),
+        .S(alu_control_i[3:0]),
+        .M(alu_control_i[4]),
+        .Cin(internal_carry_o),
+        .F(alu_result_o[7:4]),
+        .Cout(real_alu_carry_o)
+    );
+
+    assign alu_zero_o = (alu_result_o == 8'b00000000);  // check for zero
+    assign alu_negative_o = (alu_result_o[7] == 1'b1);     // check for negative
+
+    assign alu_carry_o = ~real_alu_carry_o;         // invert active-low to active-high
+
+endmodule
+
+module four_bit_alu(input  logic [3:0] A,
+                    input  logic [3:0] B,
+                    input  logic [3:0] S,
+                    input  logic       M,
+                    input  logic       Cin,
+                    output logic [3:0] F,
+                    output logic       Cout
+                    );
+    
+    // create internal real carries
+    logic real_Cin;
+    logic real_Cout;
+
+    // invert active-low to get standard 0 = no carry, 1 = carry
+    assign real_Cin = ~Cin;
+
+    always_comb begin
+        F = 4'b0000;            // default value
+        real_Cout = 1'b0;       // default value
+        unique casez ({M, S})
+            5'b0_1001: {real_Cout, F} = {1'b0, A} + {1'b0, B} + real_Cin;    // ADD
+            5'b0_0110: {real_Cout, F} = {1'b0, A} + {1'b0, ~B} + real_Cin;   // SUB
+            5'b0_0000:              F = A;                                   // PASS
+            5'b1_1011:              F = A & B;                               // AND
+            5'b1_1110:              F = A | B;                               // OR
+            5'b1_0110:              F = A ^ B;                               // XOR
+            5'b1_0000:              F = ~A;                                  // NOT
+        endcase
+    end
+
+    // invert active-low to get standard 0 = no carry, 1 = carry
+    assign Cout = ~real_Cout;
+
+endmodule

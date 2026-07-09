@@ -1,0 +1,78 @@
+
+
+module io_display(input  logic       clk_i, 
+                  input  logic       rst_i,
+                  input  logic       we_i,
+                  input  logic [7:0] data_i,
+                  output logic [6:0] hex2_o,    // Hundreds display
+                  output logic [6:0] hex1_o,    // Tens display
+                  output logic [6:0] hex0_o     // Ones display
+                  );
+    
+    // output latch
+    logic [7:0] display_reg;
+    always_ff @(posedge clk_i) begin
+        if (rst_i)
+            display_reg <= 8'b00000000;
+        else if (we_i)
+            display_reg <= data_i;
+    end
+
+    // bcd conversion
+    logic [3:0] bcd_hundreds, bcd_tens, bcd_ones;
+
+    binary_to_bcd converter (.binary_i(display_reg),
+                             .hundreds_o(bcd_hundreds),
+                             .tens_o(bcd_tens),
+                             .ones_o(bcd_ones)
+                             );
+                  
+    // 3 displays
+    seven_segment_decoder disp_hundreds (.hex_i(bcd_hundreds), .seg_o(hex2_o));
+    seven_segment_decoder disp_tens     (.hex_i(bcd_tens),     .seg_o(hex1_o));
+    seven_segment_decoder disp_ones     (.hex_i(bcd_ones),     .seg_o(hex0_o));
+
+endmodule
+
+module binary_to_bcd(input  logic [7:0] binary_i,
+                     output logic [3:0] hundreds_o,
+                     output logic [3:0] tens_o,
+                     output logic [3:0] ones_o
+                     );
+    
+    always_comb begin
+        hundreds_o = binary_i / 100;        // get 100s digit
+        tens_o     = (binary_i / 10) % 10;  // get 10s digit
+        ones_o     = binary_i % 10;         // get 1s digit
+    end
+
+endmodule
+
+module seven_segment_decoder(input  logic [3:0] hex_i,
+                             output logic [6:0] seg_o  // segments: g, f, e, d, c, b, a
+                             );
+
+    always_comb begin
+        case (hex_i)
+            // active-low encoding (0 = LED ON, 1 = LED OFF)
+            4'h0: seg_o = 7'b1000000;
+            4'h1: seg_o = 7'b1111001;
+            4'h2: seg_o = 7'b0100100;
+            4'h3: seg_o = 7'b0110000;
+            4'h4: seg_o = 7'b0011001;
+            4'h5: seg_o = 7'b0010010;
+            4'h6: seg_o = 7'b0000010;
+            4'h7: seg_o = 7'b1111000;
+            4'h8: seg_o = 7'b0000000;
+            4'h9: seg_o = 7'b0010000;
+            4'hA: seg_o = 7'b0001000;
+            4'hB: seg_o = 7'b0000011;
+            4'hC: seg_o = 7'b1000110;
+            4'hD: seg_o = 7'b0100001;
+            4'hE: seg_o = 7'b0000110;
+            4'hF: seg_o = 7'b0001110;
+            default: seg_o = 7'b1111111; // default, all segments OFF
+        endcase
+    end
+    
+endmodule

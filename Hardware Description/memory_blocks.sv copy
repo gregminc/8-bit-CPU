@@ -1,0 +1,39 @@
+
+
+module rom_memory(input  logic [7:0] addr_i,
+                  output logic [7:0] data_o
+                  );
+
+    // create an array of 256 8-bit registers
+    logic [7:0] memory_array [0:255];
+
+    // load program from text file
+    initial begin 
+        $readmemh("fibonacci.hex", memory_array);
+    end
+
+    // asynchronous read
+    assign data_o = memory_array[addr_i];
+
+endmodule
+
+module ram_memory(input  logic [7:0] addr_i,
+                  input  logic [7:0] data_i,
+                  input  logic       write_i,
+                  input  logic       clk_i,
+                  output logic [7:0] data_o
+                  );
+
+    // array of 256 8-bit registers
+    logic [7:0] memory_array [0:255];
+
+    // synchronous write
+    always_ff @(posedge clk_i) begin
+        if (write_i)
+            memory_array[addr_i] <= data_i;
+    end
+
+    // asynchronous read
+    assign data_o = memory_array[addr_i];
+
+endmodule

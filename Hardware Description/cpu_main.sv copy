@@ -1,0 +1,80 @@
+
+
+module CPU_main(input  logic       clk_i,
+                input  logic       rst_i,
+                output logic [6:0] hex2_o,
+                output logic [6:0] hex1_o,
+                output logic [6:0] hex0_o
+                );
+
+    // create wires to connect controller to datapath
+    logic       alu_cin_control;
+    logic       pc_inc;
+    logic       pc_load;
+    logic       ir_enable;
+    logic       mar_enable;
+    logic       a_enable;
+    logic       b_enable;
+    logic       flags_enable;
+    logic       ram_write;
+    logic       a_mux_sel;
+    logic [4:0] alu_control;
+    logic [2:0] bus_sel;
+
+    // create wires to connect datapath to controller
+    logic [7:0] current_opcode;
+    logic [2:0] current_flags;
+
+    // instantiate the brain
+    cpu_controller controller(
+        .clk_i(clk_i),
+        .rst_i(rst_i),
+        .flags_i(current_flags),
+        .opcode_i(current_opcode),
+        
+        .alu_cin_control(alu_cin_control),
+        .pc_inc_i(pc_inc),
+        .pc_load_i(pc_load),
+        .ir_enable_i(ir_enable),
+        .mar_enable_i(mar_enable),
+        .a_enable_i(a_enable),
+        .b_enable_i(b_enable),
+        .flags_enable_i(flags_enable),
+        .ram_write_i(ram_write),
+        .a_mux_sel_i(a_mux_sel),
+        .alu_control_i(alu_control),
+        .bus_sel_i(bus_sel)
+    );
+
+    cpu_datapath datapath(
+        .clk_i(clk_i),
+        .rst_i(rst_i),
+        
+        .alu_cin_control(alu_cin_control),
+        .pc_inc_i(pc_inc),
+        .pc_load_i(pc_load),
+        .ir_enable_i(ir_enable),
+        .mar_enable_i(mar_enable),
+        .a_enable_i(a_enable),
+        .b_enable_i(b_enable),
+        .flags_enable_i(flags_enable),
+        .ram_write_i(ram_write),
+        .a_mux_sel_i(a_mux_sel),
+        .alu_control_i(alu_control),
+        .bus_sel_i(bus_sel),
+
+        .opcode_o(current_opcode),
+        .flags_o(current_flags),
+
+        // standard output !!!
+        .hex2_o(hex2_o),
+        .hex1_o(hex1_o),
+        .hex0_o(hex0_o)
+    );
+
+endmodule
+
+
+
+
+

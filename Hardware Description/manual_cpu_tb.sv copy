@@ -1,0 +1,123 @@
+
+
+`timescale 1ns/1ps
+
+module cpu_tb;
+
+    logic clk_i;
+    logic rst_i;
+
+    logic [6:0] hex2_o;
+    logic [6:0] hex1_o;
+    logic [6:0] hex0_o;
+
+    integer errors;
+
+    // instantiate device under test
+    CPU_main dut (
+        .clk_i(clk_i),
+        .rst_i(rst_i),
+        .hex2_o(hex2_o),
+        .hex1_o(hex1_o),
+        .hex0_o(hex0_o)
+    );
+
+    task step_clock;
+        begin
+            #1 clk_i = 1'b1;
+            #1 clk_i = 1'b0;
+        end
+    endtask
+
+    task reset_cpu;
+        begin
+            rst_i = 1'b1;
+            step_clock();
+            rst_i = 1'b0;
+        end
+    endtask
+
+    task run_cycles(input integer n);
+        integer i;
+        
+        begin
+            for (i = 0; i < n; i = i + 1)
+                step_clock();
+        end
+    endtask
+
+    task check_a(
+        input [7:0] expected_a,
+        input string test_name
+    );
+        begin
+            if (dut.datapath.reg_a_to_ALU !== expected_a)
+                begin
+                    $display("error: %s", test_name);
+                    $display("  expected: %h", expected_a);
+                    $display("  actual:   %h", dut.datapath.reg_a_to_ALU);
+                    errors = errors + 1;
+                end
+            else
+                begin
+                    $display("pass: %s", test_name);
+                end
+        end
+    endtask
+
+    task check_ram(
+        input [7:0] addr,
+        input [7:0] expected_data,
+        input string test_name
+    );
+        begin
+            if (dut.datapath.main_ram.memory_array[addr] !== expected_data)
+                begin
+                    $display("error: %s", test_name);
+                    $display("  expected RAM[%h]: %h", addr, expected_data);
+                    $display("  actual RAM[%h]:   %h", addr, dut.datapath.main_ram.memory_array[addr]);
+                    errors = errors + 1;
+                end
+            else
+                begin
+                    $display("pass: %s", test_name);
+                end
+        end
+    endtask
+
+    task check_display(
+        input [7:0] expected_display,
+        input string test_name
+    );
+        begin
+            if (dut.datapath.display.display_reg !== expected_display)
+                begin
+                    $display("error: %s", test_name);
+                    $display("  expected display: %h", expected_display);
+                    $display("  actual display:   %h", dut.datapath.display.display_reg);
+                    errors = errors + 1;
+                end
+            else
+                begin
+                    $display("pass: %s", test_name);
+                end
+        end
+    endtask
+
+    initial begin
+        errors = 0;
+
+        reset_cpu();
+        run_cycles(800);
+        check_a(8'hE9, "Fibonacci final A = 233");
+        check_ram(8'h81, 8'hE9, "Fibonacci final curr = 233");
+        check_display(8'hE9, "Fibonacci display shows 233");
+
+        $display("testing is over with %0d errors", errors);
+        $finish;
+    end
+
+endmodule
+
+// iverilog -g2012 -o cpu_tb.out cpu_main.sv manual_cpu_tb.sv
+// vvp cpu_tb.out

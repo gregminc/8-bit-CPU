@@ -1,0 +1,21 @@
+
+
+module program_counter(input  logic [7:0] pc_i,
+                       input  logic       inc_i,
+                       input  logic       load_i,
+                       input  logic       clk_i,
+                       input  logic       rst_i,
+                       output logic [7:0] pc_o
+                       );
+
+    always_ff @(posedge clk_i) begin
+        if (rst_i)
+            pc_o <= 8'b00000000;
+        else if (load_i)
+            pc_o <= pc_i;
+        else if (inc_i)
+            pc_o <= pc_o + 1'b1;
+        // else do nothing
+    end
+
+endmodule

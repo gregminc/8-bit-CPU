@@ -1,0 +1,198 @@
+
+
+module cpu_controller(input  logic       clk_i,
+                      input  logic       rst_i,
+                      input  logic [2:0] flags_i,
+                      input  logic [7:0] opcode_i,
+                      // controller outputs
+                      output logic       alu_cin_control,
+                      output logic       pc_inc_i,
+                      output logic       pc_load_i,
+                      output logic       ir_enable_i,
+                      output logic       mar_enable_i,
+                      output logic       a_enable_i,
+                      output logic       b_enable_i,
+                      output logic       flags_enable_i,
+                      output logic       ram_write_i,
+                      output logic       a_mux_sel_i,
+                      output logic [4:0] alu_control_i,
+                      // bus selection
+                      output logic [2:0] bus_sel_i
+                      );
+
+    typedef enum logic [3:0] {
+        FETCH, DECODE, ALU_EXEC, ABS_ADDR_FETCH,
+        RAM_READ_A, RAM_READ_B, RAM_WRITE, 
+        IMM_LOAD_A, IMM_LOAD_B,
+        JUMP_UNCOND, JUMP_COND, HALT} statetype;
+
+    statetype state, nextstate;     // create state and nextstate
+
+    always_ff @(posedge clk_i) begin
+        if (rst_i) state <= FETCH;  // if reset, begin fetching 
+        else       state <= nextstate;
+    end
+
+    always_comb begin
+        nextstate = state;
+        unique case(state)
+            FETCH:
+                begin 
+                    nextstate = DECODE;
+                end
+            DECODE: 
+                casez (opcode_i)
+                    // assumes that a valid bit is specified for ?
+                    8'h3?: nextstate = ALU_EXEC;        // ADD, SUB, AND, OR, XOR, NOT
+                    8'h11: nextstate = ABS_ADDR_FETCH;  // LDA $
+                    8'h13: nextstate = ABS_ADDR_FETCH;  // LDB $
+                    8'h20: nextstate = ABS_ADDR_FETCH;  // STA $
+                    8'h10: nextstate = IMM_LOAD_A;      // LDA #
+                    8'h12: nextstate = IMM_LOAD_B;      // LDB #
+                    8'h40: nextstate = JUMP_UNCOND;     // JMP $
+                    8'h41: nextstate = JUMP_COND;       // JZ $, 
+                    8'h42: nextstate = JUMP_COND;       // JN $
+                    8'h01: nextstate = HALT;            // HALT
+                    default: nextstate = FETCH;         // do nothing
+                endcase
+            ABS_ADDR_FETCH:
+                case (opcode_i)
+                    8'h11: nextstate = RAM_READ_A;      // LDA $
+                    8'h13: nextstate = RAM_READ_B;      // LDB $
+                    8'h20: nextstate = RAM_WRITE;       // STA $
+                    default: nextstate = FETCH;         // do nothing
+                endcase
+            HALT:
+                nextstate = HALT;
+            // states that go on to fetch in nextstate are ommitted
+            default:
+                nextstate = FETCH;
+        endcase
+    end
+
+    logic [4:0] current_ALU_op;     // determine ALU operation based on opcode
+    always_comb begin
+        unique casez(opcode_i)
+            8'h30: current_ALU_op = 5'b01001;    // ADD
+            8'h31: current_ALU_op = 5'b00110;    // SUB
+            8'h32: current_ALU_op = 5'b11011;    // AND
+            8'h33: current_ALU_op = 5'b11110;    // OR
+            8'h34: current_ALU_op = 5'b10110;    // XOR
+            8'h35: current_ALU_op = 5'b10000;    // NOT
+            default: current_ALU_op = 5'b00000;  // Something
+        endcase
+    end    
+
+    logic allow_jump;   // {C, Z, N}
+    always_comb begin
+        allow_jump = 1'b0;
+        unique casez(flags_i)
+            3'b?1?:   
+                // if zero flag enabled, checks if jump zero is called
+                begin
+                    allow_jump = (opcode_i == 8'h41);
+                end
+            3'b??1:
+                // if negative flag enabled, checks if jump negative is called
+                begin
+                    allow_jump = (opcode_i == 8'h42);
+                end
+            default: allow_jump = 1'b0;
+        endcase
+    end             
+    
+    // for bus_sel_i 100: A, 010: RAM, 001: ROM
+    // if 1: ALU writes to A, if 0: bus writes to A 
+    always_comb begin
+        // default all control signals to inactive
+        alu_cin_control = 1'b0;
+        pc_inc_i          = 1'b0;
+        pc_load_i         = 1'b0;
+        ir_enable_i       = 1'b0;
+        mar_enable_i      = 1'b0;
+        a_enable_i        = 1'b0;
+        b_enable_i        = 1'b0;
+        flags_enable_i    = 1'b0;
+        ram_write_i       = 1'b0;
+        a_mux_sel_i       = 1'b0;
+        alu_control_i     = 5'b00000;
+        bus_sel_i         = 3'b000;
+
+        unique case(state)
+            FETCH:
+                begin 
+                    bus_sel_i = 3'b001;                 // ROM writes to bus
+                    ir_enable_i = 1'b1;                 // IR loads instruction
+                    pc_inc_i = 1'b1;                    // PC increments
+                end
+            DECODE: 
+                begin
+                end
+                // do nothing 
+            ALU_EXEC:
+                begin
+                    alu_control_i = current_ALU_op;     // determines correct ALU operation
+                    a_mux_sel_i = 1'b1;                 // selects A to read from ALU
+                    a_enable_i = 1'b1;                  // enables A register to read from ALU
+                    flags_enable_i = 1'b1;              // enables flags register
+                    alu_cin_control = (opcode_i == (8'h31));  
+                    // if subtracting, create cin to ensure compatibility with 74HC181          
+                end
+            ABS_ADDR_FETCH:
+                begin
+                    mar_enable_i = 1'b1;                // MAR fetches adress from bus
+                    bus_sel_i = 3'b001;                 // ROM writes to bus
+                    pc_inc_i = 1'b1;                    // PC increments
+                end
+            RAM_READ_A:
+                begin
+                    bus_sel_i = 3'b010;                 // RAM writes to bus
+                    a_mux_sel_i = 1'b0;                 // selects A to read from RAM
+                    a_enable_i = 1'b1;                  // enables A register to read from RAM
+                end
+            RAM_READ_B:
+                begin
+                    bus_sel_i = 3'b010;                 // RAM writes to bus
+                    b_enable_i = 1'b1;                  // enables B register to read from RAM
+                end
+            RAM_WRITE:
+                begin
+                    bus_sel_i = 3'b100;                  // A writes to bus
+                    ram_write_i = 1'b1;                  // writes to RAM
+                end
+            IMM_LOAD_A:
+                begin
+                    bus_sel_i = 3'b001;                  // ROM writes to bus
+                    a_mux_sel_i = 1'b0;                  // selects A to read from bus
+                    a_enable_i = 1'b1;                   // enables A register to read from bus
+                    pc_inc_i = 1'b1;                     // PC increments
+                end
+            IMM_LOAD_B:
+                begin
+                    bus_sel_i = 3'b001;                  // ROM writes to bus
+                    b_enable_i = 1'b1;                   // enables B register to read from bus
+                    pc_inc_i = 1'b1;                     // PC increments
+                end
+            JUMP_UNCOND:
+                begin
+                    bus_sel_i = 3'b001;                  // ROM writes to bus
+                    pc_load_i = 1'b1;                    // loads PC from bus
+                end
+            JUMP_COND:
+                begin
+                    if (allow_jump) begin
+                        bus_sel_i = 3'b001;              // ROM writes to bus
+                        pc_load_i = 1'b1;                // loads PC from bus
+                    end
+                    else begin
+                        pc_inc_i = 1'b1;                 // PC increments to skip
+                    end
+                end
+            HALT: 
+                begin
+                end
+                // hold state
+        endcase
+    end
+
+endmodule

@@ -1,0 +1,17 @@
+
+
+module generic_register(input  logic [7:0] data_i,
+                        input  logic       clk_i,
+                        input  logic       rst_i,
+                        input  logic       enable_i,
+                        output logic [7:0] data_o
+                        );
+    
+    always_ff @(posedge clk_i) begin
+        if (rst_i)
+            data_o <= 8'b00000000;
+        else if (enable_i)
+            data_o <= data_i;  // capture input on clock edge
+    end
+    
+endmodule

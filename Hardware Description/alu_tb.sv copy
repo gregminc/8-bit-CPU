@@ -1,0 +1,100 @@
+
+
+`timescale 1ns/1ps
+
+module alu_tb;
+
+    logic [7:0] alu_a_i;
+    logic [7:0] alu_b_i;
+    logic [4:0] alu_control_i;
+    logic       alu_carry_i;
+
+    logic [7:0] alu_result_o;
+    logic       alu_carry_o;
+    logic       alu_zero_o;
+    logic       alu_negative_o;
+
+    integer errors;
+
+    // instantiate device under test
+    ALU dut (
+        .alu_a_i(alu_a_i),
+        .alu_b_i(alu_b_i),
+        .alu_control_i(alu_control_i),
+        .alu_carry_i(alu_carry_i),
+        .alu_result_o(alu_result_o),
+        .alu_carry_o(alu_carry_o),
+        .alu_zero_o(alu_zero_o),
+        .alu_negative_o(alu_negative_o)
+    );
+
+    task run_test(
+        input [7:0] a,
+        input [7:0] b,
+        input [4:0] control,
+        input       cin,
+        input [7:0] expected_result,
+        input       expected_carry,
+        input       expected_zero,
+        input       expected_negative,
+        input string test_name
+    );
+
+        begin 
+            alu_a_i       = a;
+            alu_b_i       = b;
+            alu_control_i = control;
+            alu_carry_i   = cin;
+
+            #1;
+
+            if (alu_result_o !== expected_result ||
+                alu_carry_o !== expected_carry ||
+                alu_zero_o !== expected_zero ||
+                alu_negative_o !== expected_negative) 
+                    
+                begin
+
+                    $display("error: %s", test_name);                                                   // identify error
+                    $display("  inputs: A=%h B=%h control=%b cin=%b",                                   // display inputs
+                             a, b, control, cin);
+                    $display("  outputs: result=%h carry=%b zero=%b negative=%b",                       // display outputs
+                             alu_result_o, alu_carry_o, alu_zero_o, alu_negative_o);
+                    $display("  expected: result=%h carry=%b zero=%b negative=%b",                      // display expected outputs
+                             expected_result, expected_carry, expected_zero, expected_negative);
+                    errors = errors + 1;                                                                // log each error
+
+                end
+
+            else 
+            
+                begin
+
+                        $display("pass: %s", test_name);                                                // display succesful test                                                     
+                
+                end
+        end
+    endtask
+
+    initial begin
+        errors = 0;
+        // tests basic cases for addition and logic
+        run_test(8'h05, 8'h03, 5'b01001, 1'b0, 8'h08, 1'b0, 1'b0, 1'b0, "ADD 05 + 03");
+        run_test(8'hFF, 8'h01, 5'b01001, 1'b0, 8'h00, 1'b1, 1'b1, 1'b0, "ADD FF + 01");
+        run_test(8'hCC, 8'hAA, 5'b11011, 1'b0, 8'h88, 1'b0, 1'b0, 1'b1, "AND CC & AA");
+        run_test(8'hC0, 8'h0F, 5'b11110, 1'b0, 8'hCF, 1'b0, 1'b0, 1'b1, "OR C0 | 0F");
+        run_test(8'hF0, 8'hAA, 5'b10110, 1'b0, 8'h5A, 1'b0, 1'b0, 1'b0, "XOR F0 ^ AA");
+        run_test(8'h0F, 8'h00, 5'b10000, 1'b0, 8'hF0, 1'b0, 1'b0, 1'b1, "NOT 0F");
+        // tests edge cases for subtraction
+        run_test(8'h08, 8'h03, 5'b00110, 1'b1, 8'h05, 1'b1, 1'b0, 1'b0, "SUB 08 - 03");
+        run_test(8'h10, 8'h01, 5'b00110, 1'b1, 8'h0F, 1'b1, 1'b0, 1'b0, "SUB 10 - 01");
+        run_test(8'h00, 8'h01, 5'b00110, 1'b1, 8'hFF, 1'b0, 1'b0, 1'b1, "SUB 00 - 01");
+        run_test(8'h01, 8'h01, 5'b00110, 1'b1, 8'h00, 1'b1, 1'b1, 1'b0, "SUB 01 - 01");
+        run_test(8'hF0, 8'h01, 5'b00110, 1'b1, 8'hEF, 1'b1, 1'b0, 1'b1, "SUB F0 - 01");
+
+        $display("testing is over with %d errors", errors);
+        $finish;
+    end
+
+endmodule
+
