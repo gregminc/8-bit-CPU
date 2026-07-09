@@ -14,14 +14,15 @@ The project is modularized into four distinct domains, separating the physical r
 ## Engineering Tradeoffs & Physical Design
 Moving from logical design to physical breadboard implementation required navigating several strict engineering tradeoffs and hardware realities:
 
-* **Clock Cycle Sequencing:** Achieving system stability required designing a precise positive-edge-then-negative-edge sequential read/write cycle. Ensuring the system powers on correctly with the clock initially low was critical to preventing race conditions during state transitions.
-* **Signal Translation & Debugging:** Troubleshooting physical logic gates often introduces abstraction leaks. For instance, diagnosing active-low vs. active-high signal behavior required careful visual translation on the breadboards, such as reversing LED polarities to accurately reflect the true electrical state of the RAM write sequences without adding latency-inducing inverter chips.
-* **Microcode Density vs. Flexibility:** With a limited 8-bit control word space, the ISA was heavily optimized. Decisions had to be made regarding which control signals were strictly necessary to implement a Turing-complete set of operations versus those that would require expanding the physical EEPROM footprint.
+* **Clock Cycles & Bus Contention:** Achieving system stability required a precise positive-edge-then-negative-edge sequential read/write cycle. The system powers on with the clock initially low to prevent race conditions. To prevent bus contention during switching, the shared bus is driven for only half a clock cycle. 
+* **RAM Write Timing:** Driving the bus for only half a cycle meant the write signal was too wide for the window when the data was actually stable. Resolving this required adding physical propagation delay and utilizing hardware logic to decrease the write signal width, ensuring accurate writes to RAM.
+* **Instruction Set & Data Width:** To maximize the utility of the limited architecture, the ISA implements a 2-line fetch sequence for absolute and immediate values. This allows a full 8 bits to be passed directly as data while reserving the entirety of the primary 8-bit control word strictly for opcodes and instructions.
+* **Signal Translation & Debugging:** Troubleshooting physical logic gates often introduces abstraction leaks. Diagnosing active-low vs. active-high signal behavior required careful visual translation on the breadboards, such as reversing LED polarities to accurately reflect the true electrical state of the RAM write sequences without masking the underlying logic.
 
 ## Sociotechnical Context
 As modern computing scales into heavily abstracted, cloud-based environments, the foundational understanding of how electrons translate into logic is often lost. This project serves as a practical exploration of computing at its most fundamental level. Understanding the physical constraints of hardware—power draw, signal propagation delay, and physical footprint—is essential for designing the next generation of efficient, sustainable computing architectures.
 
 ## Build & Run Instructions
-1. Navigate to the `Software-Hardware Interface/` directory to compile the EEPROM programmer.
-2. Run the `Microcode/` generator scripts to compile the `.bin` or `.hex` ROM images.
-3. Use the pipeline interface to flash the generated images to the physical hardware.
+1. The firmware source files within the `Software-Hardware Interface/` directory must be imported and organized within a **PlatformIO** environment stack to compile the EEPROM programmer correctly.
+2. Run the `Microcode/` generator scripts to compile the target `.bin` or `.hex` ROM images.
+3. Use the desktop pipeline interface to flash the generated microcode and programs to the physical hardware.
