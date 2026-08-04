@@ -1,5 +1,7 @@
 # Custom 8-Bit Discrete Logic CPU & Pipeline
 
+![Custom 8-bit breadboard CPU](8-bit_cpu_overview.jpeg)
+
 ## Overview
 This repository contains the complete hardware design, schematics, and software interface pipeline for a custom 8-bit computing architecture built from the ground up using discrete logic chips on breadboards. Rather than relying solely on high-level abstractions, this project explores the bare-metal realities of computer architecture, instruction set microprogramming, and physical hardware debugging.
 
